@@ -1,310 +1,264 @@
 # Path2Placement
 ### Prepare with purpose. Understand your next step.
 
-A functional **Streamlit student placement-readiness self-assessment** with
-transparent scoring, prioritized coaching, a seven-day practice plan, SQLite
-history and an honestly labeled machine-learning learning lab.
+An explainable placement-readiness assessment for engineering students, now with a
+**responsive Vercel-ready web app**, a Python scoring API and genuinely private-by-device
+progress tracking. The original Streamlit application remains available locally.
 
-> **Readiness ≠ placement probability.** The main score uses documented rules,
-> not ML. The classifiers use **synthetic interview-exercise outcomes**, not
-> genuine placement records. No part of this app guarantees employment or ranks
-> students against one another.
+> **Readiness ≠ placement probability.** The readiness score uses documented rules,
+> not a trained model. A separate learning lab trains classifiers on explicitly
+> **synthetic interview-exercise outcomes**. No result guarantees employment.
 
-## What works
+## The web experience
 
-- Five-step assessment with preserved section answers, optional blank test scores,
-  contextual help, range checks, consistency validation and a review screen.
-- Reproducible 0–100 score; five category scores and supportive readiness bands.
-- Strengths, gaps, input-linked ordered recommendations and a downloadable seven-day plan.
-- Explicit save action; genuine SQLite history, trend chart, category changes,
-  CSV export, historical input inspection and confirmed deletion.
-- Workspace-key isolation for history; no names, email addresses or passwords required.
-- Separate synthetic learning lab: three classifiers, five-fold CV, held-out metrics,
-  confusion matrix, class counts, permutation importance and working inference.
-- Forest-green/off-white visual system, meaningful Plotly charts, native page navigation
-  and layouts checked at desktop and mobile widths.
-- Automated scoring, preprocessing, inference, database and Streamlit integration tests.
+- Guided five-step assessment with rating descriptions, draft retention, optional
+  blank test scores, browser/server validation and an editable review screen.
+- Explainable 0–100 readiness score, category breakdown, relative strengths and gaps.
+- Deterministic, prioritized recommendations with measurable completion criteria.
+- Personalized seven-day starter plan, checkable days and plan CSV download.
+- Explicitly saved history, trend chart, category changes, historical result inspection.
+- CSV export, JSON backup/restore with server-side score recomputation, confirmed deletion.
+- Separate ML learning lab: actual model comparison, holdout metrics, confusion matrix,
+  class distribution, importance statistics and real saved-model inference.
+- Responsive navigation, keyboard-visible focus, semantic forms, live error messages,
+  reduced-motion support and no external font or paid API dependency.
 
-<details>
-<summary>See the working application</summary>
+### Why the architecture changed
 
-![Overview](docs/screenshots/overview.png)
-![Rules-based results for the editable default demo inputs](docs/screenshots/results.png)
+Streamlit needs a running stateful UI server. Rather than attempting to keep one
+inside serverless functions, the deployed app uses **Vite + vanilla JavaScript**
+for the interface and **Flask on Vercel's Python runtime** for short API requests.
+No React/Next.js rewrite was necessary. The API imports the **same Python scoring
+and recommendation modules** as Streamlit; no second scoring formula is duplicated
+in JavaScript.
 
-Screenshots are from the running app, not mockups. The displayed result uses the
-editable default demonstration inputs; it is not a real student's record.
+Vercel's function disk is not used as a database. Explicitly saved history stays
+in **this browser's localStorage**; drafts and unsaved results use sessionStorage.
+This avoids shared student data and ephemeral SQLite. There are no accounts,
+automatic cross-device sync or cloud history claims. See [privacy](#privacy-and-storage).
 
-</details>
+## Run the web app locally
 
-## Quick start (Python 3.11 recommended)
-
-The checked-in dataset and small trusted model artifact make training optional.
-Install the pinned dependencies so the saved Scikit-learn pipeline is compatible.
-
-### macOS / Linux
+Requirements: **Node.js 22+** and **Python 3.11 or 3.12**. Vercel is configured for
+Python 3.12, with the artifact's Scikit-learn version pinned.
 
 ```bash
 git clone https://github.com/suyashpandey8088-cell/PlacementReadinessPredic.git
 cd PlacementReadinessPredic
-git checkout arena/b504ee97-placementreadinesspredic
-python3 -m venv .venv
+git checkout arena/cb92804d-placementreadinesspredic
+python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-streamlit run app.py
+npm ci
 ```
+
+Run these in **two terminals** from the project root:
+
+```bash
+# Terminal 1: Python API
+source .venv/bin/activate
+python -m flask --app api.index run --host 0.0.0.0 --port 8000
+```
+
+```bash
+# Terminal 2: web UI; /api requests are proxied to Python
+npm run dev
+```
+
+Open `http://localhost:5173`. Browser requests use relative `/api/...` URLs, not
+sandbox/backend localhost addresses. No API key, account or database is required.
 
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/suyashpandey8088-cell/PlacementReadinessPredic.git
-cd PlacementReadinessPredic
-git checkout arena/b504ee97-placementreadinesspredic
 py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+npm ci
+# Terminal 1
+.\.venv\Scripts\python.exe -m flask --app api.index run --host 0.0.0.0 --port 8000
+# Terminal 2
+npm run dev
+```
+
+Using the venv executables directly avoids PowerShell activation-policy changes.
+
+### Original Streamlit application
+
+```bash
+python -m pip install -r requirements-streamlit.txt
 streamlit run app.py
 ```
 
-If activation is restricted, avoid changing system policy; invoke the environment
-executables directly:
+This version retains local SQLite and workspace recovery keys. They are **not** used
+by the Vercel web version. See [the local Streamlit guide](docs/STREAMLIT_GUIDE.md).
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
-
-Windows Command Prompt activation: `.venv\Scripts\activate.bat`.
-Open the URL printed by Streamlit (normally `http://localhost:8501`). The core
-application does not require an API key, cloud database, LLM or paid service.
-Installing dependencies requires internet; after installation local scoring,
-training, history and inference do not require an external service. Browser/system
-font fallbacks are provided.
-
-### Training and tests
+## Test, build and train
 
 ```bash
-# Regenerate the explicitly synthetic data and all saved artifacts
+python -m pip install -r requirements-dev.txt
+python -m pytest -q             # Core logic, API, database and Streamlit tests
+npm test                       # Browser storage / backup / CSV unit tests
+npm run build                  # Production UI output in dist/
+python -m pip check
+
+# Optional: regenerate the explicitly synthetic dataset and saved model
 python -m src.train_model --generate
-
-# Or train on the existing, validated synthetic CSV
-python -m src.train_model
-
-# All unit and Streamlit integration tests
-python -m pytest -q
 ```
 
-Do not retrain on each UI interaction. Only the command above performs training.
-After replacing artifacts while the server is running, restart Streamlit to clear
-its model resource cache. If loading failed, the learning lab also offers Retry.
+Training is **never** run during assessment or on frontend navigation. The small,
+trusted model artifact and metadata are included. Never load untrusted Joblib files;
+pickle-based serialization can execute code. After retraining, redeploy/restart
+the API to replace cached model resources.
 
-## Take an assessment
+A reproducible real-browser regression script is included in
+`tests/browser-smoke.cjs`. Setup and its limitations are described in
+[docs/VERCEL.md](docs/VERCEL.md). GitHub Actions runs Python tests, browser-storage
+unit tests and the production build. Remote check status must be inspected separately.
 
-1. Choose **Start assessment** and submit each of the five sections. The section
-   buttons preserve answers; use them before navigating away from an unsent form.
-2. Use honest self-ratings: 1 Beginner, 2 Basic, 3 Intermediate, 4 Strong,
-   5 Advanced. Hover over help icons for behavioral descriptions.
-3. Leave logical reasoning or mock-interview scores blank if no test was taken.
-4. Review the answers. Inconsistent counts receive a specific error and cannot be scored.
-5. Calculate, inspect category contributions, priorities and the seven-day plan.
-6. Choose **Save assessment** to persist. Copy your recovery key from
-   **Local history & privacy** before ending the browser session.
-7. Save a later assessment to compare progress, or export/delete your history.
+## Scoring methodology · version 1.0
 
-There are no seeded student records, testimonials, salary claims or success rates.
-The default form values are editable starting values, **not a saved assessment**.
+All configuration lives in `src/config.py`.
 
-## Scoring, explained
-
-Configuration lives in `src/config.py`, version **1.0**:
-
-| Category | Overall weight | Within-category inputs and weights |
+| Category | Weight | Within-category criteria |
 |---|---:|---|
 | Academic preparation | 15% | CGPA 45%, consistency 20%, core subjects 35% |
-| Programming & DSA | 30% | languages 10%, programming 30%, DSA 40%, problems 20% |
-| Projects & experience | 25% | completed 10%, demos 20%, documented 15%, implementation 50%, internship 5% |
+| Programming & DSA | 30% | languages 10%, programming 30%, DSA 40%, coding practice 20% |
+| Projects & experience | 25% | count 10%, demos 20%, documented 15%, quality 50%, internship 5% |
 | Aptitude & communication | 15% | aptitude 35%, optional reasoning 15%, communication 25%, explanation 25% |
-| Interview & resume | 15% | optional mock 25%, resume 30%, preparation 25%, project explanation 20% |
+| Interview & resume | 15% | optional mock 25%, resume 30%, preparation 25%, project confidence 20% |
 
-- A 1–5 rating becomes `(rating − 1) / 4 × 100`.
-- CGPA becomes `cgpa / 10 × 100`; percentages are unchanged.
-- Counts become `min(count / cap, 1) × 100`. Caps: languages **3**, understood
-  coding problems **250**, completed projects **3**, working demos **2**,
-  documented projects **2**. Quality has more influence than count.
-- Internship is 0 for no experience, 100 for completed. Its maximum overall
-  contribution is just **1.25 points**.
-- Missing optional tests are excluded; remaining weights are rescaled **within
-  that category only**. Required inputs cannot be missing. No neutral test score
-  is invented. Different optional coverage can change comparability; the UI warns.
-- Demos/documented counts cannot exceed completed projects. Zero projects requires
-  implementation rating 1; zero languages requires programming rating 1.
-- Category scores are weighted normalized inputs. Overall score is the sum of
-  category score × overall weight, computed at full precision and rounded to two
-  decimals. A whole-number headline is accompanied by the exact score.
+- Ratings: `(rating − 1) / 4 × 100`. CGPA: `cgpa × 10`. Percentages are unchanged.
+- Count contribution: `min(count / cap, 1) × 100`. Caps: **3 languages**, **250
+  understood coding problems**, **3 projects**, **2 demos**, **2 documented projects**.
+- A completed internship contributes at most **1.25 overall points**. Project quality
+  has substantially more influence than quantity.
+- Missing optional tests are excluded only within their category and other weights
+  are rescaled. No test score is invented; comparisons with different coverage are flagged.
+- Demos/documented projects cannot exceed total completed projects. Zero projects
+  requires quality 1; zero languages requires programming proficiency 1.
+- Full precision is used before rounding the final score to two decimals. The exact
+  score is displayed alongside the rounded headline.
 
-Bands use the exact score: **0–<40** Foundation Building; **40–<60** Developing;
-**60–<75** Progressing Toward Readiness; **75–<90** Nearly Ready; **90–100**
-Strong Preparation. These thresholds and weights are design choices, **not
-scientifically validated employability boundaries**.
+Bands: **0–<40** Foundation Building; **40–<60** Developing; **60–<75** Progressing
+Toward Readiness; **75–<90** Nearly Ready; **90–100** Strong Preparation. These are
+product-design choices, **not validated employability thresholds**. Self-assessments
+are subjective and do not measure a student's worth or future potential.
 
-Same inputs and scoring version produce the same result. Count caps prevent
-unlimited points for quantity. Recommendations use actual low inputs and category
-gaps, sorted by affected category score; each includes a reason and completion
-criterion. Strong preparation receives optional maintenance/feedback tasks.
+## Dataset and ML learning lab
 
-## Data strategy and ML evaluation
+No real-outcome dataset was supplied or verified, so the fallback uses **1,400
+simulated observations** with related, noisy simulated labels. There are no genuine
+hiring records. Exact distributions, coefficients, target meaning, permissions notes
+and replacement guidance are in [the data card](data/README.md).
 
-No trustworthy real-outcome dataset was supplied in the empty starting repository.
-The project therefore uses the documented **synthetic fallback** rather than
-making unsupported claims. See [the data card](data/README.md) for exact feature
-ranges, generation equations, target meaning, licensing notes and replacement rules.
+Preprocessing uses `Pipeline` + `ColumnTransformer`. A stratified 80/20 split holds
+out 280 observations. Imputation, scaling and encoding fit inside training CV folds,
+not on the full dataset. The winner is selected by five-fold training CV F1, then
+fit on training rows and evaluated on the untouched holdout.
 
-Workflow: schema/range/target validation → duplicate predictor removal → stratified
-80/20 split → five-fold stratified CV on training rows → select highest mean F1 →
-fit once on training rows → evaluate the selected model on the untouched test set.
-A `Pipeline` and `ColumnTransformer` fit imputation, scaling and one-hot encoding
-inside training folds. Target/future variables are never predictors.
-
-Measured on the committed 1,400-row synthetic dataset, seed 42:
-
-| Candidate | Mean five-fold training CV F1 |
+| Candidate | Training CV F1 mean |
 |---|---:|
 | Logistic Regression | 0.6976 |
 | Decision Tree | 0.6046 |
 | Random Forest | 0.6621 |
 
-**Selected: Logistic Regression.** Held-out 280-row synthetic test:
-accuracy **0.7250**, precision **0.6984**, recall **0.6929**, F1 **0.6957**.
-Confusion matrix (actual rows 0/1, predicted columns 0/1): `[[115, 38], [39, 88]]`.
+Selected Logistic Regression: held-out synthetic accuracy **0.7250**, precision
+**0.6984**, recall **0.6929**, F1 **0.6957**. Confusion matrix (actual rows 0/1,
+predicted columns 0/1): `[[115,38],[39,88]]`.
 
-These are computed results, **not evidence of real-world placement accuracy**.
-Accuracy is the fraction correct; precision is the fraction of predicted simulated
-passes that pass; recall is the fraction of simulated passes detected; F1 balances
-precision and recall. A false positive predicts a simulated pass for a failure;
-a false negative misses a simulated pass. Neither is a real employment forecast.
-Class distribution, missingness, CV standard deviation/fold results and repeat-shuffle
-importance are in the [evaluation report](reports/model_evaluation.md), metadata
-and Model insights page. Importance is not causation.
+**These metrics do not establish real-world placement accuracy.** Feature importance
+is not causation. See [the measured evaluation report](reports/model_evaluation.md),
+metadata and the Model insights page. Schema/version/checksum failures produce a
+recoverable lab error without disabling ordinary readiness assessments.
 
-`models/placement_model.joblib` and `model_metadata.json` are intentionally committed:
-they are small, locally generated trusted artifacts. Metadata includes schema,
-versions, timestamp, checksums, selection/evaluation results and limitations.
-**Never load untrusted Joblib files**: pickle-based formats can execute code.
-The checksum detects accidental mismatch, not malicious modification of both files.
+## Privacy and storage
 
-## Architecture and data flow
+**Web version:** answers are sent to the same-origin Python API for computation.
+The application does not persist inputs/results on the server or log request bodies.
+The host still handles ordinary request metadata under its own policies.
+
+Only the Save action writes an assessment to browser storage. The same browser
+profile on the same site can read it; this is **device-local privacy, not identity
+authentication or encrypted storage**. Shared devices should clear their history.
+Incognito mode, browser cleanup or changing site origin can remove/hide records.
+No names, email addresses or sensitive demographics are collected.
+
+- CSV exports are human-readable reports, not backup imports.
+- JSON backups contain inputs, results and timestamps; keep them private.
+- Restore validates the backup and recomputes every input profile through the Python
+  API before writing the merged history. A failed import does not partially save.
+- At most 200 assessments are kept; reaching the limit gives an explicit error rather
+  than silently deleting records. Backups are limited to 2 MB.
+- Delete clears local assessments, plan ticks and this tab's draft/result. It cannot
+  delete files already exported to your device or data in another browser.
+- **No cloud synchronization or login is implemented.** A future account-based
+  history feature needs reviewed authentication, authorization and retention rules.
+
+## Deployment on Vercel
+
+`vercel.json` configures Vite static output plus the Python function in
+`api/index.py`. `.python-version` selects 3.12; `requirements.txt` contains only
+API/runtime dependencies. Streamlit and developer tools are excluded from the
+function bundle. The frontend sends relative URLs, and SPA routes rewrite to
+`index.html` while `/api/*` routes go to Python.
+
+Import this repository into Vercel, use the current working branch, and keep:
+
+- Framework: **Vite**
+- Build: **`npm run build`**
+- Install: **`npm ci`**
+- Output: **`dist`**
+- Root directory: repository root
+- Environment variables: **none required**
+
+See [docs/VERCEL.md](docs/VERCEL.md) for architecture, production smoke checks,
+redeployment and deployment protection. The user-requested production deployment
+uses this branch; it does not automatically merge changes into `main`.
+
+## Project map
 
 ```text
-app.py                         Page registration, identity, navigation
-assets/                        Small static SVG wordmark/icon
-.streamlit/config.toml         Consistent theme and bind address
-src/config.py                  Input schema, caps, weights and bands
-src/readiness_scoring.py        Validation, normalization, deterministic score
-src/recommendations.py          Ranked coaching rules and daily plan
-src/database.py                 Workspace-isolated SQLite queries and CSV export
-src/data_preprocessing.py       Synthetic generator, dataset checks, preprocessing
-src/train_model.py              Reproducible CV, selection, evaluation, serialization
-src/evaluation.py               Held-out metric computation
-src/predict.py                  Trusted artifact validation and lab inference
-src/ui.py                      All seven page renderers; no training on reruns
-data/                          Synthetic CSV, data card; ignored local SQLite file
-models/                        Saved small pipeline and measured metadata
-reports/                       Evaluation report and verification notes
-tests/                         Unit and Streamlit integration tests
-docs/PORTFOLIO.md               Demo script, study guide, interview Q&A, roadmap
-.github/workflows/tests.yml    Repeatable tests on future pushes (not a deployment)
+web/main.js, styles.css   Responsive UI, navigation, forms, result/history pages
+web/storage.js           Validated explicit saves, backup parsing, safe CSV export
+api/index.py             Stateless Flask API; shared Python scoring and inference
+index.html, public/      Web entry and static favicon
+vite.config.js           Local proxy and production build
+vercel.json              Serverless routing, function bundle and security headers
+src/config.py            Single input schema, normalization caps and category weights
+src/readiness_scoring.py  Reproducible validation and readiness scoring
+src/recommendations.py   Deterministic priorities and seven-day plan
+src/predict.py           Trusted saved-pipeline validation and illustrative inference
+src/train_model.py       Separate reproducible training and evaluation command
+src/data_preprocessing.py Synthetic generator, dataset checks and preprocessing
+app.py, src/ui.py         Original local Streamlit interface
+src/database.py          Original local-only SQLite storage (not used on Vercel)
+models/, data/           Small model/metadata and documented synthetic dataset
+tests/                   Python, browser-storage and optional real-browser tests
+reports/                 Evaluation and verification records
+docs/                    Deployment, presentation and legacy local-app guides
 ```
 
-Assessment widgets → session draft → validation/review → rules-based scoring →
-recommendations/plan → explicit SQLite save. Progress reads only records matching
-the current hashed workspace key. Pandas flattens them for CSV; Plotly visualizes
-actual category scores and history. Independent lab inference validates a seven-feature
-DataFrame and sends it through the exact saved preprocessing/classifier pipeline.
+## Common problems
 
-**Why these libraries?** Streamlit supplies interactive Python UI and session state;
-Pandas structures tables/CSV; NumPy generates reproducible simulated data;
-Scikit-learn provides leakage-safe pipelines and metrics; Joblib serializes the
-pipeline; Plotly provides readable interactive charts; SQLite supplies standard-library
-local persistence; Pytest and Streamlit AppTest verify logic and user flows.
-
-## Persistence, privacy and limitations
-
-SQLite defaults to `data/history.sqlite3`. Override with `PATH2PLACEMENT_DB`:
-
-```bash
-export PATH2PLACEMENT_DB=/path/to/writable/history.sqlite3
-```
-
-PowerShell: `$env:PATH2PLACEMENT_DB = "C:\path\history.sqlite3"`.
-The file and its sidecars are ignored by Git. Stored data: random assessment ID,
-UTC timestamp, **hashed** workspace key, scores, scoring version, inputs and
-recommendations. All queries use bound parameters and every read/delete is scoped
-to a workspace. An assessment ID makes saving idempotent across reruns.
-
-The random 256-bit recovery key lives in session state, not URLs. A fresh session
-creates a new workspace; restore a saved key in the sidebar to reopen history.
-There is **no account system or enterprise authentication**. Anyone with a key can
-access that workspace; server operators and anyone with disk access can read the
-unencrypted database. Lost keys cannot be recovered by this UI. Do not use this
-prototype for confidential or high-stakes records. Clearing removes the active
-workspace's records, not external backups. A new workspace does not delete old data.
-
-Hosted SQLite is on the **host**, not the student's device, and may disappear on
-restarts or not be shared between replicas. Export important records. For actual
-public institutional use, first add authentication, authorization, TLS, secure
-backups, retention/consent policies and a reviewed storage design. Self-ratings,
-unequal opportunities and unmeasured employer/context factors limit interpretation.
-The app is not suitable for hiring, ranking, admission or guaranteed outcomes.
-
-## Deployment (prepared; no hosted deployment claimed)
-
-A compatible long-running Python/Streamlit host is required. Streamlit Community
-Cloud may offer a free tier subject to its current eligibility and resource limits.
-
-1. Push this branch to GitHub (instructions below).
-2. In the hosting platform, select this repository, branch
-   `arena/b504ee97-placementreadinesspredic`, and entry file `app.py`.
-3. Choose Python **3.11**, install `requirements.txt`, and launch
-   `streamlit run app.py` (Community Cloud manages the launch itself).
-4. On a custom host, bind `0.0.0.0` and use the host-assigned port. Configuration
-   already binds all interfaces. Keep Streamlit's default CORS/XSRF safeguards on.
-5. Test the public URL, form, charts, exports, workspace isolation and persistence.
-   If versions change, retrain artifacts. Do not confuse a running development
-   preview with a durable deployment.
-
-The core does not need Supabase, Vercel or any connected external service. It is a
-stateful Streamlit server, not a static page or ordinary serverless frontend.
-
-### GitHub workflow
-
-Changes for this implementation belong to the fixed working branch:
-
-```bash
-git status
-git add app.py src tests data models reports docs assets .streamlit .github README.md requirements.txt .gitignore
-git commit -m "Build Path2Placement readiness assessment and synthetic ML lab"
-git push origin arena/b504ee97-placementreadinesspredic
-```
-
-Optionally open a pull request from this branch into `main` using GitHub's interface
-or `gh pr create --base main --head arena/b504ee97-placementreadinesspredic`.
-Never commit `.venv`, recovery keys, private history, secrets or large external datasets.
-
-## Verification and troubleshooting
-
-See [verification notes](reports/verification.md) for actually executed checks.
-
-| Symptom | Recovery |
+| Problem | Action |
 |---|---|
-| `streamlit` not found | Activate the venv or use `python -m streamlit run app.py` |
-| Missing or incompatible model | Run `python -m src.train_model --generate`; restart app. Main scoring still works |
-| Missing dataset | Run training with `--generate` to recreate it |
-| Database unavailable | Set `PATH2PLACEMENT_DB` to a writable file path, not a directory. Assessments still calculate without saving |
-| No old history after refresh | Restore the full recovery key. A new session is intentionally isolated |
-| Hosted history lost | Storage may be ephemeral. Restore from your own CSV copy (CSV import is not implemented) |
-| Different totals after leaving optional tests blank | Missing inputs rescale category weights; compare like-for-like coverage |
-| Invalid demo/documented count | Counts must not exceed completed projects |
-| Form changes vanished after page navigation | Submit the section before using sidebar navigation; unsent forms are temporary |
-| Model changes not visible | Restart the app to clear the cached resource |
+| Web page cannot open its API | Start Flask on port 8000 as well as Vite locally; check `/api/health` after deployment |
+| Port already used | Stop the old process or update both the API port and Vite proxy |
+| Model missing/incompatible | Regenerate artifacts and restart/redeploy; readiness scoring is independent |
+| History seems missing | It belongs to the same browser profile **and origin**; restore a private JSON backup |
+| Browser storage blocked/full | Assessment still works in memory; browser saving may fail explicitly |
+| Import fails | Use an actual JSON backup, not CSV; restore validates/recomputes all inputs before saving |
+| Deployment shows sign-in | Check the Vercel project's Deployment Protection settings before sharing publicly |
+| Streamlit command unavailable | Install `requirements-streamlit.txt`, not just the web runtime dependencies |
 
-For the 4–7-day student implementation plan, concise interview answers, limitations,
-a 3–5-minute demo script and resume-ready wording, see [the portfolio guide](docs/PORTFOLIO.md).
+## Limits and next steps
+
+This is an educational preparation tool, not a hiring, admission or ranking system.
+Self-ratings, design-choice weights, unequal opportunities and missing tests limit
+interpretation. Synthetic data cannot prove external validity or fairness. Add real
+user feedback and objective quizzes before expanding outcome claims; accounts and
+cloud sync should be a separately reviewed feature, not hidden prototype behavior.
+
+For a presentation script, interview answers and resume wording, see
+[docs/PORTFOLIO.md](docs/PORTFOLIO.md). Verification records distinguish completed
+checks from public-hosting and identity guarantees that have not been established.

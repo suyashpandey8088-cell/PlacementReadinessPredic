@@ -1,5 +1,9 @@
 # Student presentation and learning guide
 
+The deployed web version uses Vite + Flask and browser-local history. The original
+Streamlit app remains a local alternative. The scoring and synthetic ML workflow
+are shared between both interfaces.
+
 ## Three-to-five-minute demonstration (about four minutes)
 
 **0:00–0:35 · Problem and honesty**
@@ -25,8 +29,9 @@ Open the plan and show one measurable completion criterion. Download the plan.
 **2:25–3:05 · Persistence**
 Save. Show My progress. Update a relevant skill only if you have evidence (or
 explicitly call it a demonstration input), save another assessment and show the
-category change. Export CSV. Show where the workspace recovery key can be copied
-without revealing it on a projector. Explain host storage and deletion.
+category change. Export CSV. Open Privacy & data. Download a private JSON backup, demonstrate confirmed
+deletion and restore. Explain that browser-local history is not account-based
+cloud synchronization.
 Use a dedicated demonstration workspace; never pretend demo records belong to a real student.
 
 **3:05–4:00 · ML and engineering**
@@ -41,11 +46,11 @@ Never describe simulated metrics as actual placement accuracy.
 
 ## Resume-ready description
 
-**Path2Placement | Python, Streamlit, Scikit-learn, SQLite, Plotly**
+**Path2Placement | Python, Flask, JavaScript, Vite, Scikit-learn, Vercel**
 - Built an explainable five-category placement-readiness self-assessment with
   validated inputs, prioritized rule-based coaching and a measurable seven-day plan.
-- Implemented workspace-isolated SQLite history, category/trend visualization,
-  CSV export and automated unit/Streamlit integration tests.
+- Shipped a responsive Vercel web app with browser-local history, category/trend
+  visualization, CSV export, validated JSON backup/restore and Python/API/UI tests.
 - Developed a reproducible synthetic ML learning lab comparing Logistic Regression,
   Decision Tree and Random Forest with leakage-safe pipelines, stratified CV and
   held-out evaluation; documented why simulated results are not hiring forecasts.
@@ -97,10 +102,11 @@ Training learns parameters from labeled examples and writes artifacts. Inference
 loads the trusted fitted pipeline and classifies new schema-validated rows. Streamlit
 reruns never train a model.
 
-**10. How does SQLite isolate students?**
-Records are scoped by a hash of a random 256-bit workspace key. Every read/delete
-binds that owner value. This is bearer-key isolation, not authenticated accounts;
-server administrators can still access disk, and shared keys grant shared access.
+**10. How is saved history isolated?**
+The Vercel web app has no student-record database: explicitly saved history belongs
+to a browser profile and origin. Another browser profile starts empty, but someone
+sharing the same profile can read it. It is not authenticated or encrypted storage.
+The separate local Streamlit version uses SQLite scoped by a hashed workspace key.
 
 **11. How are recommendations generated?**
 Deterministic rules inspect actual low ratings/counts/test results and category gaps.
