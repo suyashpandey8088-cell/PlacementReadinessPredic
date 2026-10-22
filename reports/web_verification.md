@@ -86,3 +86,33 @@ verification, not inferred from the local tests.
 - Synthetic metrics do not establish genuine hiring accuracy or fairness.
 - No user study, high-stakes suitability, uptime guarantee or enterprise security
   certification is claimed.
+
+## Final recorded results
+
+- **Production release:** `dpl_A43fZmYVjTDRfabMf9dtXhS8eF6f` from runtime commit
+  `c5f4d94b7b21a6dfe7c9bb3bff13f78f08321813` reached **READY / PROMOTED**.
+- Public alias: **https://placement-readiness-predic.vercel.app**.
+- After promotion, public `/api/health`, `/assessment` and `/model` were retrieved
+  successfully. The assessment rendered real controls and the model page rendered
+  actual measured metadata and the semantic confusion-matrix table.
+- **71 Python tests, six browser-storage tests and production build passed remotely**
+  for commit `c5f4d94`:
+  https://github.com/suyashpandey8088-cell/PlacementReadinessPredic/actions/runs/39727868895
+- **Live Vercel smoke test passed** from a GitHub-hosted Chromium runner:
+  https://github.com/suyashpandey8088-cell/PlacementReadinessPredic/actions/runs/39727868988
+  All browser steps and screenshot upload completed successfully. This run exercised
+  the initial production release (`10e8ac3`) while the final hardening deployment
+  was being prepared. It includes actual public API scoring and saved-model
+  inference—not only local tests or a successful build status.
+- The subsequent hardening release preserves those features and adds input-type
+  validation, stricter browser-record validation and intentional config ordering;
+  it passed the full local browser suite and the remote unit/API/build checks above.
+  The public GET checks after its promotion are listed separately rather than
+  misrepresenting the earlier live test as a second post-promotion browser run.
+- A requested manual repeat of the live workflow was not dispatched: GitHub returned
+  `403 Resource not accessible by integration` for workflow dispatch. The successful
+  push-triggered checks and deployment are unaffected. No broader GitHub login or
+  repository access failure is inferred from that specific permission restriction.
+- No main-branch merge was performed. The source and documentation are pushed on
+  `arena/cb92804d-placementreadinesspredic`. Later documentation-only updates do not
+  change the deployed runtime files.

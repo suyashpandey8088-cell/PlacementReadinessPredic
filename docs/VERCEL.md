@@ -133,3 +133,13 @@ Charts have textual values/alternatives. The confusion matrix is a semantic tabl
 Automated accessibility checks are a smoke test, not a certification or a substitute
 for assistive-technology and student usability studies. Findings and fixes belong
 in the verification record.
+
+## Verified release
+
+Public app: https://placement-readiness-predic.vercel.app
+
+The Vercel production release reached READY/PROMOTED, and the public site and API
+were checked. A hosted Chromium smoke test passed against the initial production
+release; the latest hardening revision passed 71 Python tests, six JavaScript tests
+and production build. Exact revision/timing distinctions and check links are in
+[the verification record](../reports/web_verification.md).
