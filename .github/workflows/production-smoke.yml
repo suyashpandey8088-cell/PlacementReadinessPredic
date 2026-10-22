@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  issues: write
 jobs:
   browser:
     runs-on: ubuntu-latest
@@ -28,13 +27,11 @@ jobs:
           P2P_SMOKE_EMAIL: p2p-smoke@example.com
           P2P_SMOKE_PASSWORD: smoke-test-password-2026
         run: node tests/browser-smoke.cjs
-      - name: Report failure in an issue when logs are unavailable
+      - name: Report failure as a check annotation
         if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          BODY="$(cat .cache/smoke-error.txt 2>/dev/null || echo 'No error file was produced.')"
-          gh issue create --title "Live smoke test failed for ${GITHUB_SHA:0:7}" --body "$BODY" || true
+          MESSAGE="$(head -c 900 .cache/smoke-error.txt 2>/dev/null | tr '\n' ' ' || true)"
+          echo "::error title=Live smoke test failed::${MESSAGE:-No error file was produced.}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
