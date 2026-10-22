@@ -1,0 +1,29 @@
+name: Live Vercel smoke test
+on:
+  push:
+    branches: [arena/cb92804d-placementreadinesspredic]
+    paths:
+      - '.github/workflows/production-smoke.yml'
+      - 'tests/browser-smoke.cjs'
+  workflow_dispatch:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix .cache/browser --no-package-lock playwright
+      - run: .cache/browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Exercise public production UI and Python API
+        env:
+          NODE_PATH: ${{ github.workspace }}/.cache/browser/node_modules
+          P2P_BASE_URL: https://placement-readiness-predic.vercel.app
+        run: node tests/browser-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-browser-screenshots
+          path: .cache/screenshots/

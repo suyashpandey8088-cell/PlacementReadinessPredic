@@ -10,7 +10,8 @@ export function isRecord(record) {
     && typeof record.band === 'string' && !!record.categories
     && CATEGORY_NAMES.every(c => Number.isFinite(record.categories[c]) && record.categories[c] >= 0 && record.categories[c] <= 100)
     && Array.isArray(record.missing_optional) && typeof record.scoring_version === 'string'
-    && Array.isArray(record.recommendations) && Array.isArray(record.plan);
+    && Array.isArray(record.recommendations) && record.recommendations.every(r => r && ['title','category','reason','task','criterion','priority'].every(k => typeof r[k] === 'string'))
+    && Array.isArray(record.plan) && record.plan.every(d => d && Number.isInteger(d.Day) && d.Day >= 1 && d.Day <= 7 && Number.isFinite(d.Minutes) && d.Minutes > 0 && ['Focus','Task','Done when'].every(k => typeof d[k] === 'string'));
 }
 export function readHistory(storage = localStorage) {
   const raw = storage.getItem(HISTORY_KEY);

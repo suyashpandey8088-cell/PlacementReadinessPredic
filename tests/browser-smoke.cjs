@@ -9,6 +9,7 @@ const path=require('node:path');
  const browser=await pw.launch(options);
  const context=await browser.newContext({viewport:{width:1440,height:1050}});
  const page=await context.newPage(), errors=[];
+ page.setDefaultTimeout(60000);
  page.on('pageerror',e=>errors.push(e.message));
  const base=process.env.P2P_BASE_URL||'http://127.0.0.1:5173';
  fs.mkdirSync('.cache/screenshots',{recursive:true});
@@ -57,6 +58,15 @@ const path=require('node:path');
  if(overflow)throw Error('Mobile horizontal overflow');
  await mp.getByRole('button',{name:'Toggle navigation'}).click();await mp.getByRole('link',{name:'My progress',exact:true}).click();await mp.getByRole('heading',{name:'Your starting line is waiting.'}).waitFor();
  // Narrow browser has a separate storage partition/context: no other visitor's history.
+ await mp.getByRole('button',{name:'Toggle navigation'}).click();await mp.getByRole('link',{name:'Assess my readiness',exact:true}).first().click();
+ for(let i=0;i<5;i++){
+   await mp.getByRole('button',{name:i===4?'Review my answers':'Save & continue',exact:true}).click();
+   await mp.getByText(i===4?'One last look before your results.':`Section ${i+2} of 5`,{exact:false}).waitFor();
+ }
+ await mp.getByRole('button',{name:'Calculate my readiness'}).click();await mp.getByRole('heading',{name:'Here’s where you stand.'}).waitFor();
+ await mp.screenshot({path:'.cache/screenshots/mobile-results.png',fullPage:true});
+ if(await mp.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile results overflow');
+
  if(errors.length)throw Error(errors.join('\n'));
  console.log('PASS: desktop assessment/validation/repeat/save, plan ticks, CSV download, backup/delete/restore, model inference, mobile layout/navigation, cross-context history isolation; JS errors: 0.');
  await browser.close();

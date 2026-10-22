@@ -1,6 +1,8 @@
 # Path2Placement
 ### Prepare with purpose. Understand your next step.
 
+**Live app: [placement-readiness-predic.vercel.app](https://placement-readiness-predic.vercel.app)**
+
 An explainable placement-readiness assessment for engineering students, now with a
 **responsive Vercel-ready web app**, a Python scoring API and genuinely private-by-device
 progress tracking. The original Streamlit application remains available locally.
@@ -109,6 +111,10 @@ Training is **never** run during assessment or on frontend navigation. The small
 trusted model artifact and metadata are included. Never load untrusted Joblib files;
 pickle-based serialization can execute code. After retraining, redeploy/restart
 the API to replace cached model resources.
+
+The current local verification passes **71 Python tests** and **6 browser-storage tests**,
+plus production frontend build and scripted desktop/mobile workflows. See
+[the web verification record](reports/web_verification.md) for exact scope and limitations.
 
 A reproducible real-browser regression script is included in
 `tests/browser-smoke.cjs`. Setup and its limitations are described in

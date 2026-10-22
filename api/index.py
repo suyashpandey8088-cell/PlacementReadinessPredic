@@ -14,6 +14,7 @@ from src.recommendations import recommend, seven_day_plan
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024
+app.json.sort_keys = False  # Preserve the intentional assessment-field order.
 
 
 @app.after_request
@@ -64,7 +65,7 @@ def config():
 def validate():
     body = payload()
     category = body.get('category')
-    if category not in CATEGORY_FIELDS:
+    if not isinstance(category, str) or category not in CATEGORY_FIELDS:
         raise ValidationError('Choose a valid assessment section.')
     inputs = body.get('inputs')
     if not isinstance(inputs, dict):

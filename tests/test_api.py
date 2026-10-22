@@ -84,3 +84,19 @@ def test_model_metadata_is_real(client):
     assert response.json['synthetic'] is True
     assert response.json['test_rows'] == 280
     assert len(response.json['comparison']) == 3
+
+
+@pytest.mark.parametrize('category', [[], {}, 3, None])
+def test_invalid_category_types_are_helpful(client, category):
+    assert client.post('/api/validate', json={'category':category,'inputs':{}}).status_code == 422
+
+
+def test_model_failure_does_not_break_readiness(client, inputs, monkeypatch):
+    from api import index
+    from src.predict import ModelError
+    def unavailable():
+        raise ModelError('unavailable')
+    monkeypatch.setattr(index, 'model_pipeline', unavailable)
+    body={'cgpa':7,'coding_practice':80,'dsa_rating':3,'project_quality':3,'aptitude':60,'communication':3,'internship':'none'}
+    assert client.post('/api/simulate', json=body).status_code == 503
+    assert client.post('/api/assess', json=inputs).status_code == 200
