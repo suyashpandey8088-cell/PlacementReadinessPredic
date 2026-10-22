@@ -3,6 +3,9 @@
 This record supersedes the original local-Streamlit verification for the Vercel
 web app. `reports/verification.md` remains a historical record of the original UI.
 
+Sections below dated before the "Optional accounts" addendum describe the guest-only
+release; the addendum records what changed and supersedes those statements.
+
 ## Local executed checks
 
 - `python -m pytest -q`: **71 passed**. Includes the original scoring/ML/SQLite/
@@ -78,9 +81,10 @@ verification, not inferred from the local tests.
 
 ## Explicit limits
 
-- Device/browser/origin-local history; no account system, cloud sync or encryption
-  at rest. Shared profiles can read saved records. JSON backups are private files.
-- No new Supabase resources, cloud database or paid API was provisioned.
+- Guest history remains device/browser/origin-local, with no encryption at rest;
+  shared browser profiles can read it. Account history requires signing in.
+- No paid API was provisioned. Optional accounts reuse the existing shared Supabase
+  project through four new `p2p_*` tables; no pre-existing table was altered.
 - The original local Streamlit version still uses SQLite; the deployed web version
   does not write SQLite or rely on serverless disk persistence.
 - Synthetic metrics do not establish genuine hiring accuracy or fairness.
@@ -116,3 +120,69 @@ verification, not inferred from the local tests.
 - No main-branch merge was performed. The source and documentation are pushed on
   `arena/cb92804d-placementreadinesspredic`. Later documentation-only updates do not
   change the deployed runtime files.
+
+## Optional accounts · added 2026-10-22
+
+The earlier guest-only release is superseded by optional sign-up/sign-in. Every
+previously verified guest behaviour still passes unchanged.
+
+### Local executed checks
+
+- `python -m pytest -q`: **86 passed**. The 15 account tests use a fake store/auth
+  pair and cover: duplicate email (409), weak password (422), 8 failed logins then
+  `429` with `Retry-After`, unauthenticated history (401), cross-user record access
+  (404), the 200-record cap (409), server-side score recomputation on import,
+  idempotent import, duplicate IDs (422), oversized payload (413), corrupt stored
+  records skipped, password change revoking other sessions, account deletion, and
+  an unconfigured deployment returning `{"available": false, "user": null}`.
+- `npm test`: **11 passed**, including email/password rules, initials, and
+  `safeNextPath` rejecting external, protocol-relative and `/login` targets.
+- `npm run build`: succeeded (CSS 33.27 kB, JS 265.19 kB / 87.68 kB gzip).
+- `node --check web/main.js` and `python -m compileall -q api src`: clean.
+- A DOM harness (happy-dom + esbuild, stubbed Chart.js/Lucide) drove the real
+  `web/main.js` against a mocked API: sign-in, redirect to `/progress`, account
+  header, account-history rendering, password change, sign-out, mode switch to
+  sign-up with URL persistence, and sign-up. Screenshots of `/login`, `/account`
+  and `/privacy` were reviewed at 1440×1050 and 390×844; no horizontal overflow.
+
+### Real Chromium, local servers
+
+`tests/browser-smoke.cjs` passed locally against Flask + Vite, now also covering
+`/login` (tab switch, password visibility toggle), `/account` signed out, and the
+signed-out privacy page. Guest assessment, plan ticks, CSV downloads, delete and
+restore, model inference and mobile layouts still pass with zero JavaScript errors.
+
+### Live production account flow
+
+The reusable smoke test now signs in with a disposable account (`p2p-smoke@example.com`,
+created on first run), completes a full five-section assessment, saves it to the
+account, and confirms it appears in `/progress`. A second browser context with no
+cookie receives **401** from `/api/history` with no record data, and the account
+data is then deleted, after which the session no longer authenticates.
+
+- Run: https://github.com/suyashpandey8088-cell/PlacementReadinessPredic/actions/runs/39732909720
+  — **success** (commit `8130d3b`).
+- Post-run database check: `p2p_profiles`, `p2p_sessions` and `p2p_assessments`
+  contained no smoke-test rows; assessments were removed by the profile cascade.
+  The shared Supabase sign-in identity remains, exactly as the UI states.
+- The same run also re-verified every guest flow against the account-enabled build.
+
+### Production release with accounts
+
+- Deployment `dpl_AweyPGou318fSZB2p8sar9ZyitGE` from `b7bb8ce` reached
+  **READY / PROMOTED** and was assigned
+  **https://placement-readiness-predic.vercel.app**.
+- `/api/health` returned
+  `{"status":"ok","scoring_version":"1.0","history":"browser-or-account","auth":"configured","release":"b7bb8ce"}`.
+- `/api/auth/me` returned `{"available":true,"user":null}` for a signed-out request.
+- A real visitor account created through the deployed UI was observed in
+  `p2p_profiles`/`p2p_sessions` during verification, independently confirming that
+  sign-up, password grant and session creation work against the live database.
+
+### Remaining limits
+
+- No verification or password-reset email is sent, so email ownership is unverified
+  and a forgotten password cannot be recovered in-app.
+- Account deletion keeps the shared GoTrue identity (documented in the UI and README).
+- Rate limits and CSRF checks are application-level, not a substitute for a full
+  security review or enterprise identity provider.

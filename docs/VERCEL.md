@@ -209,6 +209,17 @@ Single-process Chromium is deliberately disabled for the test because that mode 
 share storage between browser contexts; isolation is tested with proper independent
 contexts. Browser tooling is not needed to run the application.
 
+### Disposable smoke-test account
+
+The live smoke workflow signs in with `p2p-smoke@example.com` so the real sign-in,
+account save, cross-session isolation and deletion paths run on every push that
+touches the workflow or the browser test. The account holds no personal data and its
+Path2Placement rows are deleted at the end of each run; the shared Supabase Auth
+identity remains. Remove that identity from Supabase → Authentication → Users if you
+no longer want it, and delete the `P2P_SMOKE_*` environment variables from the
+workflow to skip the block entirely. Failed runs report a one-line check annotation
+(taken from `.cache/smoke-error.txt`) instead of relying on downloadable logs.
+
 ## Accessibility and design
 
 Warm off-white, forest-green accent, consistent secondary text, real Lucide icons,
