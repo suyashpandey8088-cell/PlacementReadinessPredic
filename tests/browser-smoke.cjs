@@ -89,17 +89,24 @@ const path=require('node:path');
  if(accountEmail&&accountPassword){
    const acct=await browser.newContext({viewport:{width:1440,height:1050}});
    const ap=await acct.newPage();ap.setDefaultTimeout(60000);ap.on('pageerror',e=>errors.push(e.message));
-   const signIn=async()=>{await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);await ap.getByRole('button',{name:'Sign in',exact:true}).click();await ap.waitForTimeout(1500);};
-   await ap.goto(base+'/login?next=/assessment');await ap.getByRole('heading',{name:'Welcome back'}).waitFor();
-   await signIn();
-   if(await ap.locator('#form-error').count()&&/incorrect/i.test(await ap.locator('#form-error').innerText())){
-     // First run: create the disposable account, then it is reused by later runs.
-     await ap.getByRole('tab',{name:'Create account'}).click();
+   const authCalls=[];
+   ap.on('response',async r=>{if(r.url().includes('/api/auth/')){let body='';try{body=(await r.text()).slice(0,300);}catch{}authCalls.push(`${r.status()} ${r.request().method()} ${new URL(r.url()).pathname} ${body}`);}});
+   const diagnostics=async label=>`${label}: url=${ap.url()} calls=${JSON.stringify(authCalls)} page=${(await ap.locator('#main').innerText()).slice(0,300)}`;
+   const submit=async(mode)=>{
      await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);
-     await ap.getByRole('button',{name:'Create my account'}).click();await ap.waitForTimeout(1500);
-     const signupError=await ap.locator('#form-error').count()?await ap.locator('#form-error').innerText():'';
-     if(/incorrect|exists/i.test(signupError))throw Error('Smoke account could not be created: '+signupError);
+     await ap.getByRole('button',{name:mode==='signup'?'Create my account':'Sign in',exact:true}).click();
+     await ap.waitForTimeout(2000);
+   };
+   await ap.goto(base+'/login?next=/assessment');await ap.getByRole('heading',{name:'Welcome back'}).waitFor();
+   await submit('signin');
+   if(ap.url().includes('/login')){
+     const firstError=await ap.locator('#form-error').innerText();
+     if(!/incorrect/i.test(firstError))throw Error(await diagnostics('Sign-in failed unexpectedly'));
+     await ap.getByRole('tab',{name:'Create account'}).click();
+     await submit('signup');
+     if(ap.url().includes('/login'))throw Error(await diagnostics('Account creation did not sign in'));
    }
+   if(!ap.url().includes('/assessment'))throw Error(await diagnostics('Sign-in did not follow the next path'));
    await ap.getByText('Section 1 of 5',{exact:false}).waitFor();
    for(let i=0;i<5;i++){
      await ap.getByRole('button',{name:i===4?'Review my answers':'Save & continue',exact:true}).click();
