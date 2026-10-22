@@ -4,8 +4,9 @@
 **Live app: [placement-readiness-predic.vercel.app](https://placement-readiness-predic.vercel.app)**
 
 An explainable placement-readiness assessment for engineering students, now with a
-**responsive Vercel-ready web app**, a Python scoring API and genuinely private-by-device
-progress tracking. The original Streamlit application remains available locally.
+**responsive Vercel-ready web app**, a Python scoring API, browser-local guest history
+and **optional accounts** for cross-device history. The original Streamlit application
+remains available locally.
 
 > **Readiness ≠ placement probability.** The readiness score uses documented rules,
 > not a trained model. A separate learning lab trains classifiers on explicitly
@@ -19,6 +20,8 @@ progress tracking. The original Streamlit application remains available locally.
 - Deterministic, prioritized recommendations with measurable completion criteria.
 - Personalized seven-day starter plan, checkable days and plan CSV download.
 - Explicitly saved history, trend chart, category changes, historical result inspection.
+- **Optional sign-up/sign-in** with 30-day secure-cookie sessions; guest mode stays complete.
+  Signed-in history is stored per account and every query is scoped to the session's user ID.
 - CSV export, JSON backup/restore with server-side score recomputation, confirmed deletion.
 - Separate ML learning lab: actual model comparison, holdout metrics, confusion matrix,
   class distribution, importance statistics and real saved-model inference.
@@ -34,10 +37,11 @@ No React/Next.js rewrite was necessary. The API imports the **same Python scorin
 and recommendation modules** as Streamlit; no second scoring formula is duplicated
 in JavaScript.
 
-Vercel's function disk is not used as a database. Explicitly saved history stays
-in **this browser's localStorage**; drafts and unsaved results use sessionStorage.
-This avoids shared student data and ephemeral SQLite. There are no accounts,
-automatic cross-device sync or cloud history claims. See [privacy](#privacy-and-storage).
+Vercel's function disk is not used as a database. Guest history stays in **this
+browser's localStorage**; drafts and unsaved results use sessionStorage. Optional
+accounts add a separate, user-scoped history in Supabase Postgres, accessed only by
+the Python API with a server-side key. See [privacy](#privacy-and-storage) and
+[accounts](#optional-accounts).
 
 ## Run the web app locally
 
@@ -179,26 +183,62 @@ recoverable lab error without disabling ordinary readiness assessments.
 
 ## Privacy and storage
 
-**Web version:** answers are sent to the same-origin Python API for computation.
-The application does not persist inputs/results on the server or log request bodies.
-The host still handles ordinary request metadata under its own policies.
-
-Only the Save action writes an assessment to browser storage. The same browser
-profile on the same site can read it; this is **device-local privacy, not identity
-authentication or encrypted storage**. Shared devices should clear their history.
-Incognito mode, browser cleanup or changing site origin can remove/hide records.
-No names, email addresses or sensitive demographics are collected.
+**Guest mode (default):** answers are sent to the same-origin Python API for
+computation. Nothing is written to a server database unless you create an account
+and choose to save. Only the Save action writes to browser storage. The same
+browser profile on the same site can read it; that is **device-local privacy, not
+identity authentication or encrypted storage**. Incognito mode, browser cleanup or
+a changed origin can remove or hide records.
 
 - CSV exports are human-readable reports, not backup imports.
 - JSON backups contain inputs, results and timestamps; keep them private.
-- Restore validates the backup and recomputes every input profile through the Python
-  API before writing the merged history. A failed import does not partially save.
+- Restore validates the backup and recomputes every input profile through the
+  Python API before writing the merged history. A failed import does not partially save.
 - At most 200 assessments are kept; reaching the limit gives an explicit error rather
   than silently deleting records. Backups are limited to 2 MB.
 - Delete clears local assessments, plan ticks and this tab's draft/result. It cannot
   delete files already exported to your device or data in another browser.
-- **No cloud synchronization or login is implemented.** A future account-based
-  history feature needs reviewed authentication, authorization and retention rules.
+
+## Optional accounts
+
+Signing in is genuinely optional: every assessment, result, plan and guest export
+works without an account. Accounts only change **where explicitly saved history
+lives**.
+
+- **Credentials:** Supabase Auth stores the email and password hash. This app never
+  receives or stores the password itself.
+- **Sessions:** the API issues a random 32-byte token in a `Secure`, `HttpOnly`,
+  `SameSite=Lax` cookie (`__Host-p2p_session` on HTTPS). Only a SHA-256 hash of the
+  token is stored server-side, sessions expire after 30 days, and sign-out deletes
+  the row. Password changes invalidate other sessions.
+- **Data:** `p2p_profiles` (email), `p2p_sessions` (token hashes) and
+  `p2p_assessments` (one JSON record per saved assessment). All three have row-level
+  security enabled with **no browser-facing policies**; only the server-side
+  service key can read them, and every account query is filtered by `user_id`.
+- **Limits:** 8 failed sign-ins per email per 15 minutes, 30 per IP, 5 sign-ups per IP
+  per hour. Duplicate emails return a clear conflict instead of overwriting an account.
+- **Deletion:** "Delete my Path2Placement data" removes the profile, sessions and all
+  saved assessments, then signs you out. The underlying shared sign-in identity is
+  kept, so signing in again starts with an empty history; the UI states this explicitly.
+- **Honest gaps:** this demo sends no verification or password-reset email, so email
+  ownership is unverified and a forgotten password cannot be recovered in-app. It is
+  not an enterprise identity system and should not hold confidential student records.
+  The shared Supabase project also serves another demo app, so the same email may be
+  recognized there; assessment tables remain separate.
+
+Local setup for accounts needs a Supabase project and these server-side variables
+(`SUPABASE_SECRET_KEY` must never be exposed to the browser):
+
+```bash
+export SUPABASE_URL="https://your-project.supabase.co"
+export SUPABASE_PUBLISHABLE_KEY="sb_publishable_..."
+export SUPABASE_SECRET_KEY="server-only-secret"   # service_role key; never ship to the client
+```
+
+Without them the app still runs: `/api/health` reports `"auth":"unconfigured"`,
+`/api/auth/me` returns `{"available":false,"user":null}`, and `/login` explains that
+accounts are unavailable. Run the four `p2p_*` table migrations (see
+[docs/VERCEL.md](docs/VERCEL.md#account-tables)) before enabling accounts.
 
 ## Deployment on Vercel
 
@@ -215,7 +255,8 @@ Import this repository into Vercel, use the current working branch, and keep:
 - Install: **`npm ci`**
 - Output: **`dist`**
 - Root directory: repository root
-- Environment variables: **none required**
+- Environment variables: optional accounts only — `SUPABASE_URL`,
+  `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (server-only). Guest mode needs none.
 
 See [docs/VERCEL.md](docs/VERCEL.md) for architecture, production smoke checks,
 redeployment and deployment protection. The user-requested production deployment
@@ -224,9 +265,12 @@ uses this branch; it does not automatically merge changes into `main`.
 ## Project map
 
 ```text
-web/main.js, styles.css   Responsive UI, navigation, forms, result/history pages
+web/main.js, styles.css   Responsive UI, navigation, forms, result/history/account pages
+web/auth-utils.js        Email/password/initials validation and safe next-path rules
 web/storage.js           Validated explicit saves, backup parsing, safe CSV export
-api/index.py             Stateless Flask API; shared Python scoring and inference
+api/index.py             Flask API; shared Python scoring and inference
+api/accounts.py          Optional accounts, sessions, rate limits, account history
+api/supabase_store.py    Server-only Supabase REST/Auth client
 index.html, public/      Web entry and static favicon
 vite.config.js           Local proxy and production build
 vercel.json              Serverless routing, function bundle and security headers

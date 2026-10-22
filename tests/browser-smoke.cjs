@@ -49,6 +49,23 @@ const path=require('node:path');
  await page.getByRole('tab',{name:'Data & workflow'}).click();await page.getByRole('heading',{name:'A leakage-safe workflow'}).waitFor();
  await page.getByRole('tab',{name:'Try the model'}).click();await page.getByRole('button',{name:'Run simulated inference'}).click();await page.getByText('Simulated exercise class:',{exact:false}).waitFor();
  await page.getByRole('link',{name:'About & methodology',exact:true}).click();await page.getByText('Academic preparation · 15% of overall score',{exact:true}).click();await screen('about');
+ // Optional-account routes while signed out (works whether accounts are configured or not).
+ await page.goto(base+'/login');await page.locator('#main h1').waitFor();await screen('login');
+ const authHeading=await page.locator('#main h1').innerText();
+ const authConfigured=await page.locator('#auth-form').count();
+ if(authConfigured){
+   if(!authHeading.includes('Welcome back'))throw Error('Unexpected configured sign-in heading: '+authHeading);
+   await page.getByRole('tab',{name:'Create account'}).click();await page.getByRole('heading',{name:'Create your account'}).waitFor();await screen('signup');
+   await page.getByRole('tab',{name:'Sign in'}).click();await page.getByRole('heading',{name:'Welcome back'}).waitFor();
+   await page.getByRole('button',{name:'Show password'}).click();
+   if(await page.locator('#auth-password').getAttribute('type')!=='text')throw Error('Password visibility toggle failed');
+ } else {
+   if(!authHeading.includes('Sign in'))throw Error('Unexpected unconfigured sign-in heading: '+authHeading);
+   await page.getByText('Accounts aren’t configured on this deployment.',{exact:false}).waitFor();
+ }
+ await page.goto(base+'/account');await page.getByRole('heading',{name:'No account is signed in.'}).waitFor();await screen('account-signed-out');
+ await page.goto(base+'/privacy');await page.getByRole('heading',{name:'Privacy & your data'}).waitFor();
+ await page.getByText('No account is required.',{exact:false}).waitFor();
  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const mp=await mobile.newPage();mp.on('pageerror',e=>errors.push(e.message));
  await mp.goto(base);await mp.getByRole('heading',{name:'Your preparation.'}).waitFor();await mp.screenshot({path:'.cache/screenshots/mobile-overview.png',fullPage:true});
  await mp.getByRole('link',{name:'Assess my readiness',exact:true}).last().click();
