@@ -1,8 +1,6 @@
-# Tested together on Python 3.11. Pin scikit-learn to the saved artifact version.
-streamlit==1.66.1
-pandas==2.3.3
+# Vercel API runtime. The original Streamlit UI uses requirements-streamlit.txt.
+Flask==3.1.2
 numpy==2.4.6
+pandas==2.3.3
 scikit-learn==1.7.2
-plotly==6.9.0
 joblib==1.6.0
-pytest==8.4.2

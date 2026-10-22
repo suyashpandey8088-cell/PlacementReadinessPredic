@@ -1,3 +1,5 @@
+> **Historical local-Streamlit verification.** For the deployed Vercel web app and latest test/deployment results, see [web_verification.md](web_verification.md).
+
 # Verification record
 
 Date: 2026-10-22 UTC. Environment: Linux, Python 3.11.2; pinned dependencies in
