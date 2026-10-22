@@ -111,7 +111,7 @@ const path=require('node:path');
    await ap.getByRole('button',{name:'Saved to your account'}).waitFor();await screenOn(ap,'account-result');
    await ap.getByRole('link',{name:'My progress',exact:true}).click();
    await ap.getByText('In your account',{exact:false}).waitFor();
-   await ap.locator('#trend-chart').waitFor();await screenOn(ap,'account-progress');
+   await ap.getByText('Saved assessments',{exact:false}).waitFor();await screenOn(ap,'account-progress');
    // A second context has no session cookie: account history must be unreadable.
    const stranger=await browser.newContext({viewport:{width:1200,height:900}});
    const sp=await stranger.newPage();sp.setDefaultTimeout(60000);sp.on('pageerror',e=>errors.push(e.message));
@@ -135,4 +135,8 @@ const path=require('node:path');
  if(errors.length)throw Error(errors.join('\n'));
  console.log('PASS: desktop assessment/validation/repeat/save, plan ticks, CSV download, backup/delete/restore, model inference, mobile layout/navigation, cross-context history isolation; JS errors: 0.');
  await browser.close();
-})().catch(e=>{console.error(e);process.exit(1)});
+})().catch(e=>{
+  console.error(e);
+  try{fs.mkdirSync('.cache',{recursive:true});fs.writeFileSync('.cache/smoke-error.txt',String(e&&e.stack||e));}catch{}
+  process.exit(1);
+});
