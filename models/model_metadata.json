@@ -1,0 +1,140 @@
+{
+  "artifact_version": 1,
+  "model_name": "Logistic Regression",
+  "trained_at_utc": "2026-10-22T04:39:22.555389+00:00",
+  "sklearn_version": "1.7.2",
+  "seed": 42,
+  "synthetic": true,
+  "dataset": "Path2Placement synthetic v1; generated with NumPy, seed 42. No real students or hiring records.",
+  "dataset_sha256": "915078dc24c46459957871516d6556813237c023d210e605c844f8463cf73eed",
+  "model_sha256": "83c85cef2cf87912b0904b501211f64ca91bc6fe045733c0aaaf01d04fc50c6a",
+  "features": [
+    "cgpa",
+    "coding_practice",
+    "dsa_rating",
+    "project_quality",
+    "aptitude",
+    "communication",
+    "internship"
+  ],
+  "target": "simulated_outcome",
+  "target_definition": "A simulated interview-exercise outcome sampled from a documented logistic relationship; 1 = simulated pass.",
+  "audit": {
+    "usable_observations": 1400,
+    "duplicate_feature_rows_removed": 0,
+    "missing_values": {
+      "cgpa": 0,
+      "coding_practice": 0,
+      "dsa_rating": 0,
+      "project_quality": 0,
+      "aptitude": 46,
+      "communication": 54,
+      "internship": 0,
+      "simulated_outcome": 0
+    },
+    "class_distribution": {
+      "0": 763,
+      "1": 637
+    }
+  },
+  "training_rows": 1120,
+  "test_rows": 280,
+  "comparison": [
+    {
+      "model": "Logistic Regression",
+      "cv_f1_mean": 0.6976216459576452,
+      "cv_f1_std": 0.037226836812994824,
+      "cv_folds": [
+        0.6804123711340206,
+        0.6798029556650246,
+        0.7609756097560976,
+        0.6526315789473685,
+        0.7142857142857143
+      ]
+    },
+    {
+      "model": "Decision Tree",
+      "cv_f1_mean": 0.6046415655465542,
+      "cv_f1_std": 0.036237117231999384,
+      "cv_folds": [
+        0.6632653061224489,
+        0.5829145728643216,
+        0.6276595744680851,
+        0.5875706214689266,
+        0.5617977528089888
+      ]
+    },
+    {
+      "model": "Random Forest",
+      "cv_f1_mean": 0.6621133115663376,
+      "cv_f1_std": 0.033023836373495076,
+      "cv_folds": [
+        0.648936170212766,
+        0.67,
+        0.7093596059113301,
+        0.6086956521739131,
+        0.6735751295336787
+      ]
+    }
+  ],
+  "test_metrics": {
+    "accuracy": 0.725,
+    "precision": 0.6984126984126984,
+    "recall": 0.6929133858267716,
+    "f1": 0.6956521739130435,
+    "confusion_matrix": [
+      [
+        115,
+        38
+      ],
+      [
+        39,
+        88
+      ]
+    ]
+  },
+  "permutation_importance": [
+    {
+      "feature": "cgpa",
+      "mean": -0.002587662698594173,
+      "std": 0.007731570875754285
+    },
+    {
+      "feature": "coding_practice",
+      "mean": 0.014473965431418406,
+      "std": 0.01226659636527442
+    },
+    {
+      "feature": "dsa_rating",
+      "mean": 0.05594465097791519,
+      "std": 0.020786582623108937
+    },
+    {
+      "feature": "project_quality",
+      "mean": 0.0606348766336422,
+      "std": 0.021266248769639277
+    },
+    {
+      "feature": "aptitude",
+      "mean": 0.01482538995676655,
+      "std": 0.014337225577991957
+    },
+    {
+      "feature": "communication",
+      "mean": -0.0035671421906846162,
+      "std": 0.010193754403009587
+    },
+    {
+      "feature": "internship",
+      "mean": -0.000888331795089306,
+      "std": 0.007613833156508785
+    }
+  ],
+  "limitations": [
+    "All labels are simulated, not genuine placement outcomes.",
+    "Metrics only measure recovery of an invented relationship; they do not establish real-world accuracy.",
+    "No temporal, geographic or institutional external validation.",
+    "Permutation importance is not causation; correlated features can share importance.",
+    "A future real dataset needs a provenance, consent/licensing and leakage review, plus subgroup and calibration evaluation."
+  ]
+}
