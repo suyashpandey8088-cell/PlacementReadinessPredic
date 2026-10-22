@@ -1,20 +1,26 @@
 """A small WSGI API reusing the original Python logic, without Streamlit state.
 
 Run locally: python -m flask --app api.index run --host 0.0.0.0 --port 8000
-No assessment inputs or history are written to server disk or a cloud database.
+
+Guest requests are stateless: nothing is written to server disk. When optional
+accounts are configured, the routes in api/accounts.py persist only explicitly
+saved assessments, scoped to the authenticated user, in Supabase Postgres.
 """
 import json
 import logging
+import os
 from functools import lru_cache
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge
 from src.config import ROOT, FIELDS, CATEGORY_FIELDS, CATEGORY_WEIGHTS, SECTION_HELP, BANDS, SCORING_VERSION
 from src.readiness_scoring import assess, validate_inputs, ValidationError
 from src.recommendations import recommend, seven_day_plan
+from .accounts import bp as accounts_bp, configured as accounts_configured
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 512 * 1024
 app.json.sort_keys = False  # Preserve the intentional assessment-field order.
+app.register_blueprint(accounts_bp)
 
 
 @app.after_request
@@ -24,7 +30,9 @@ def safe_response(response):
     return response
 
 
-def payload():
+def payload(max_bytes=32 * 1024):
+    if request.content_length and request.content_length > max_bytes:
+        raise RequestEntityTooLarge()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         raise ValidationError('Send a JSON object containing assessment inputs.')
@@ -49,7 +57,13 @@ def bad_json(exc):
 
 @app.get('/api/health')
 def health():
-    return jsonify(status='ok', scoring_version=SCORING_VERSION, history='browser-only')
+    return jsonify(
+        status='ok',
+        scoring_version=SCORING_VERSION,
+        history='browser-or-account',
+        auth='configured' if accounts_configured() else 'unconfigured',
+        release=(os.environ.get('VERCEL_GIT_COMMIT_SHA') or '')[:7],
+    )
 
 
 @app.get('/api/config')

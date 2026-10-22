@@ -38,8 +38,8 @@ abuse prevention or enterprise authentication is made.
 | Saved history | Local SQLite, scoped by workspace key | Same-browser, same-origin localStorage |
 | Unsaved draft | Streamlit session state | Tab sessionStorage + memory |
 | Recovery | Workspace key on same server | Private JSON backup, explicit restore |
-| Cross-device automatic sync | No | No |
-| Accounts | No | No |
+| Cross-device automatic sync | No | Optional, account-scoped |
+| Accounts | No | Optional (Supabase Auth) |
 
 On a shared device, another person with the same browser profile can read local
 history. There is no login/encryption guarantee. JSON backup restore recomputes
@@ -49,8 +49,92 @@ imported assessment timestamps were independently verified. Checklist ticks are
 browser conveniences, not externally assessed achievements; they are not part of
 assessment backup files.
 
-The web app intentionally does not connect to an unrelated existing cloud database.
-Moving to synced accounts later needs explicit identity and row-authorization design.
+Guest data never leaves the browser. Account data is only written after an explicit
+save by a signed-in user; see [Account tables](#account-tables) and the security model
+below.
+
+### Accounts (optional)
+
+Credentials live in Supabase Auth; the app never sees passwords. The Flask API issues
+its own opaque session token (`secrets.token_urlsafe(32)`) in a `Secure`, `HttpOnly`,
+`SameSite=Lax` cookie — `__Host-p2p_session` on HTTPS, `p2p_session` on localhost because
+browsers reject `__Host-` cookies without TLS. Only a SHA-256 hash of the token is stored.
+Sessions last 30 days and are deleted on sign-out; a password change removes every other
+session for that user.
+
+Every account-table query is filtered by the authenticated `user_id` from the session
+cookie — never by a client-supplied ID. The four `p2p_*` tables have RLS enabled with
+no policies, and `anon`/`authenticated` privileges are revoked, so the browser cannot
+read them directly even if it obtained the publishable key.
+
+| Endpoint | Auth | Behaviour |
+|---|---|---|
+| `GET /api/auth/me` | cookie optional | `{available, user}`; clears an invalid cookie |
+| `POST /api/auth/signup` | none (rate-limited) | creates a confirmed Supabase user, profile and session |
+| `POST /api/auth/login` | none (rate-limited) | password grant, then app session |
+| `POST /api/auth/logout` | cookie | deletes the session row and clears the cookie |
+| `POST /api/auth/password` | required | verifies the current password, updates it, revokes other sessions |
+| `GET /api/history` | required | saved assessments for the session user (invalid stored records are skipped and counted) |
+| `POST /api/history` | required | validates inputs, recomputes score/plan server-side, enforces the 200 cap |
+| `DELETE /api/history/<id>` | required | deletes one record scoped to the user |
+| `POST /api/history/import` | required | recomputes each backup record, skips duplicates, reports counts |
+| `DELETE /api/account/data` | required | removes profile, sessions and assessments; keeps the shared login identity |
+
+Rate limits are stored as HMAC-SHA-256 hashes of email/IP in `p2p_auth_attempts`
+(8 failures per email per 15 min, 30 per IP, 5 sign-ups per IP per hour), so raw
+addresses and emails are not duplicated there. CSRF is blocked by an Origin /
+`Sec-Fetch-Site` check on every state-changing request.
+
+Email confirmation is disabled on this shared Supabase project (its mailer is
+rate-limited and unsuited to a demo), so accounts are created with
+`email_confirm: true`. That means **email ownership is not verified and password reset
+is unavailable in-app**; the UI says so rather than implying a full identity system.
+
+### Account tables
+
+Created as migration `path2placement_account_tables` in the existing shared Supabase
+project. No pre-existing table was altered.
+
+```sql
+create table public.p2p_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  created_at timestamptz not null default now()
+);
+create unique index p2p_profiles_email_key on public.p2p_profiles (lower(email));
+
+create table public.p2p_sessions (
+  token_hash text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index p2p_sessions_user_idx on public.p2p_sessions (user_id);
+
+create table public.p2p_assessments (
+  id text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  record jsonb not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
+create table public.p2p_auth_attempts (
+  key_hash text primary key,
+  attempts integer not null default 0 check (attempts >= 0),
+  window_started_at timestamptz not null default now()
+);
+
+alter table public.p2p_profiles enable row level security;
+alter table public.p2p_sessions enable row level security;
+alter table public.p2p_assessments enable row level security;
+alter table public.p2p_auth_attempts enable row level security;
+-- no policies: only the server-side service key may read or write
+```
+
+`SUPABASE_SECRET_KEY` bypasses RLS, so it is set as a Vercel environment variable for
+all targets and is never sent to the browser. The publishable key is only used by the
+API for the password-grant call.
 
 ## Deployment settings
 
@@ -58,6 +142,10 @@ Moving to synced accounts later needs explicit identity and row-authorization de
 - Framework: Vite; root is repository root.
 - Install `npm ci`; build `npm run build`; output `dist`.
 - `api/index.py` is the Flask/WSGI function; `/api/*` rewrites to it.
+- Account environment variables (all targets, optional):
+  `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`.
+  Without them the deployment runs guest-only and `/api/auth/me` returns
+  `{"available": false, "user": null}`.
 - Runtime uses `.python-version` **3.12** and pinned Scikit-learn **1.7.2**.
 - `requirements.txt` contains web/API runtime dependencies only.
 - `requirements-streamlit.txt` preserves local UI dependencies;

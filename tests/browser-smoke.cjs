@@ -49,6 +49,23 @@ const path=require('node:path');
  await page.getByRole('tab',{name:'Data & workflow'}).click();await page.getByRole('heading',{name:'A leakage-safe workflow'}).waitFor();
  await page.getByRole('tab',{name:'Try the model'}).click();await page.getByRole('button',{name:'Run simulated inference'}).click();await page.getByText('Simulated exercise class:',{exact:false}).waitFor();
  await page.getByRole('link',{name:'About & methodology',exact:true}).click();await page.getByText('Academic preparation · 15% of overall score',{exact:true}).click();await screen('about');
+ // Optional-account routes while signed out (works whether accounts are configured or not).
+ await page.goto(base+'/login');await page.locator('#main h1').waitFor();await screen('login');
+ const authHeading=await page.locator('#main h1').innerText();
+ const authConfigured=await page.locator('#auth-form').count();
+ if(authConfigured){
+   if(!authHeading.includes('Welcome back'))throw Error('Unexpected configured sign-in heading: '+authHeading);
+   await page.getByRole('tab',{name:'Create account'}).click();await page.getByRole('heading',{name:'Create your account'}).waitFor();await screen('signup');
+   await page.getByRole('tab',{name:'Sign in'}).click();await page.getByRole('heading',{name:'Welcome back'}).waitFor();
+   await page.getByRole('button',{name:'Show password'}).click();
+   if(await page.locator('#auth-password').getAttribute('type')!=='text')throw Error('Password visibility toggle failed');
+ } else {
+   if(!authHeading.includes('Sign in'))throw Error('Unexpected unconfigured sign-in heading: '+authHeading);
+   await page.getByText('Accounts aren’t configured on this deployment.',{exact:false}).waitFor();
+ }
+ await page.goto(base+'/account');await page.getByRole('heading',{name:'No account is signed in.'}).waitFor();await screen('account-signed-out');
+ await page.goto(base+'/privacy');await page.getByRole('heading',{name:'Privacy & your data'}).waitFor();
+ await page.getByText('No account is required.',{exact:false}).waitFor();
  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const mp=await mobile.newPage();mp.on('pageerror',e=>errors.push(e.message));
  await mp.goto(base);await mp.getByRole('heading',{name:'Your preparation.'}).waitFor();await mp.screenshot({path:'.cache/screenshots/mobile-overview.png',fullPage:true});
  await mp.getByRole('link',{name:'Assess my readiness',exact:true}).last().click();
@@ -67,7 +84,68 @@ const path=require('node:path');
  await mp.screenshot({path:'.cache/screenshots/mobile-results.png',fullPage:true});
  if(await mp.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile results overflow');
 
+ // Optional real-account regression check. Only runs when a disposable test account is supplied.
+ const accountEmail=process.env.P2P_SMOKE_EMAIL, accountPassword=process.env.P2P_SMOKE_PASSWORD;
+ if(accountEmail&&accountPassword){
+   const acct=await browser.newContext({viewport:{width:1440,height:1050}});
+   const ap=await acct.newPage();ap.setDefaultTimeout(60000);ap.on('pageerror',e=>errors.push(e.message));
+   const authCalls=[];
+   ap.on('response',async r=>{if(r.url().includes('/api/auth/')){let body='';try{body=(await r.text()).slice(0,300);}catch{}authCalls.push(`${r.status()} ${r.request().method()} ${new URL(r.url()).pathname} ${body}`);}});
+   const diagnostics=async label=>`${label}: url=${ap.url()} calls=${JSON.stringify(authCalls)} page=${(await ap.locator('#main').innerText()).slice(0,300)}`;
+   const submit=async(mode)=>{
+     await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);
+     await ap.getByRole('button',{name:mode==='signup'?'Create my account':'Sign in',exact:true}).click();
+     // The first request may cold-start the Python function; wait for a real outcome.
+     await ap.waitForFunction(()=>location.pathname!=='/login'||(document.querySelector('#form-error')?.textContent||'').trim().length>0,null,{timeout:45000}).catch(()=>{});
+     await ap.waitForTimeout(400);
+   };
+   await ap.goto(base+'/login?next=/assessment');await ap.getByRole('heading',{name:'Welcome back'}).waitFor();
+   await submit('signin');
+   if(ap.url().includes('/login')){
+     const firstError=await ap.locator('#form-error').innerText();
+     if(!/incorrect/i.test(firstError))throw Error(await diagnostics('Sign-in failed unexpectedly'));
+     await ap.getByRole('tab',{name:'Create account'}).click();
+     await submit('signup');
+     if(ap.url().includes('/login'))throw Error(await diagnostics('Account creation did not sign in'));
+   }
+   if(!ap.url().includes('/assessment'))throw Error(await diagnostics('Sign-in did not follow the next path'));
+   await ap.getByText('Section 1 of 5',{exact:false}).waitFor();
+   for(let i=0;i<5;i++){
+     await ap.getByRole('button',{name:i===4?'Review my answers':'Save & continue',exact:true}).click();
+     await ap.getByText(i===4?'One last look before your results.':`Section ${i+2} of 5`,{exact:false}).waitFor();
+   }
+   await ap.getByRole('button',{name:'Calculate my readiness'}).click();
+   await ap.getByRole('heading',{name:'Here’s where you stand.'}).waitFor();
+   await ap.getByRole('button',{name:'Save to my account',exact:true}).click();
+   await ap.getByRole('button',{name:'Saved to your account'}).waitFor();await screenOn(ap,'account-result');
+   await ap.getByRole('link',{name:'My progress',exact:true}).click();
+   await ap.getByText('In your account',{exact:false}).waitFor();
+   await ap.getByText('Saved assessments',{exact:false}).waitFor();await screenOn(ap,'account-progress');
+   // A second context has no session cookie: account history must be unreadable.
+   const stranger=await browser.newContext({viewport:{width:1200,height:900}});
+   const sp=await stranger.newPage();sp.setDefaultTimeout(60000);sp.on('pageerror',e=>errors.push(e.message));
+   await sp.goto(base+'/progress');await sp.getByRole('heading',{name:'Your starting line is waiting.'}).waitFor();
+   const unauthorised=await sp.evaluate(async()=>{const r=await fetch('/api/history',{credentials:'same-origin'});return {status:r.status,body:await r.text()};});
+   if(unauthorised.status!==401)throw Error('A signed-out browser could read account history: '+unauthorised.status);
+   if(/score/.test(unauthorised.body))throw Error('Unauthorised history response leaked record data');
+   await stranger.close();
+   // Deletion removes account data and ends the session.
+   await ap.goto(base+'/privacy');await ap.locator('#confirm-account-delete').check();
+   await ap.getByRole('button',{name:'Delete my Path2Placement data'}).click();
+   await ap.getByRole('heading',{name:'Your preparation.'}).waitFor();
+   const me=await ap.evaluate(async()=>{const r=await fetch('/api/auth/me',{credentials:'same-origin'});return r.json();});
+   if(me.user)throw Error('Session survived account deletion');
+   const afterDelete=await ap.evaluate(async()=>{const r=await fetch('/api/history',{credentials:'same-origin'});return r.status;});
+   if(afterDelete!==401)throw Error('History still readable after account deletion: '+afterDelete);
+   await acct.close();
+ }
+ async function screenOn(target,name){await target.screenshot({path:`.cache/screenshots/${name}.png`,fullPage:true});}
+
  if(errors.length)throw Error(errors.join('\n'));
  console.log('PASS: desktop assessment/validation/repeat/save, plan ticks, CSV download, backup/delete/restore, model inference, mobile layout/navigation, cross-context history isolation; JS errors: 0.');
  await browser.close();
-})().catch(e=>{console.error(e);process.exit(1)});
+})().catch(e=>{
+  console.error(e);
+  try{fs.mkdirSync('.cache',{recursive:true});fs.writeFileSync('.cache/smoke-error.txt',String(e&&e.stack||e));}catch{}
+  process.exit(1);
+});

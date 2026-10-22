@@ -11,7 +11,7 @@ def client():
 
 
 def test_config_health(client):
-    assert client.get('/api/health').json['history'] == 'browser-only'
+    assert client.get('/api/health').json['history'] == 'browser-or-account'
     config = client.get('/api/config').json
     assert len(config['fields']) == 20
     assert len(config['categories']) == 5
