@@ -84,6 +84,54 @@ const path=require('node:path');
  await mp.screenshot({path:'.cache/screenshots/mobile-results.png',fullPage:true});
  if(await mp.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile results overflow');
 
+ // Optional real-account regression check. Only runs when a disposable test account is supplied.
+ const accountEmail=process.env.P2P_SMOKE_EMAIL, accountPassword=process.env.P2P_SMOKE_PASSWORD;
+ if(accountEmail&&accountPassword){
+   const acct=await browser.newContext({viewport:{width:1440,height:1050}});
+   const ap=await acct.newPage();ap.setDefaultTimeout(60000);ap.on('pageerror',e=>errors.push(e.message));
+   const signIn=async()=>{await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);await ap.getByRole('button',{name:'Sign in',exact:true}).click();await ap.waitForTimeout(1500);};
+   await ap.goto(base+'/login?next=/assessment');await ap.getByRole('heading',{name:'Welcome back'}).waitFor();
+   await signIn();
+   if(await ap.locator('#form-error').count()&&/incorrect/i.test(await ap.locator('#form-error').innerText())){
+     // First run: create the disposable account, then it is reused by later runs.
+     await ap.getByRole('tab',{name:'Create account'}).click();
+     await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);
+     await ap.getByRole('button',{name:'Create my account'}).click();await ap.waitForTimeout(1500);
+     const signupError=await ap.locator('#form-error').count()?await ap.locator('#form-error').innerText():'';
+     if(/incorrect|exists/i.test(signupError))throw Error('Smoke account could not be created: '+signupError);
+   }
+   await ap.getByText('Section 1 of 5',{exact:false}).waitFor();
+   for(let i=0;i<5;i++){
+     await ap.getByRole('button',{name:i===4?'Review my answers':'Save & continue',exact:true}).click();
+     await ap.getByText(i===4?'One last look before your results.':`Section ${i+2} of 5`,{exact:false}).waitFor();
+   }
+   await ap.getByRole('button',{name:'Calculate my readiness'}).click();
+   await ap.getByRole('heading',{name:'Here’s where you stand.'}).waitFor();
+   await ap.getByRole('button',{name:'Save to my account',exact:true}).click();
+   await ap.getByRole('button',{name:'Saved to your account'}).waitFor();await screenOn(ap,'account-result');
+   await ap.getByRole('link',{name:'My progress',exact:true}).click();
+   await ap.getByText('In your account',{exact:false}).waitFor();
+   await ap.locator('#trend-chart').waitFor();await screenOn(ap,'account-progress');
+   // A second context has no session cookie: account history must be unreadable.
+   const stranger=await browser.newContext({viewport:{width:1200,height:900}});
+   const sp=await stranger.newPage();sp.setDefaultTimeout(60000);sp.on('pageerror',e=>errors.push(e.message));
+   await sp.goto(base+'/progress');await sp.getByRole('heading',{name:'Your starting line is waiting.'}).waitFor();
+   const unauthorised=await sp.evaluate(async()=>{const r=await fetch('/api/history',{credentials:'same-origin'});return {status:r.status,body:await r.text()};});
+   if(unauthorised.status!==401)throw Error('A signed-out browser could read account history: '+unauthorised.status);
+   if(/score/.test(unauthorised.body))throw Error('Unauthorised history response leaked record data');
+   await stranger.close();
+   // Deletion removes account data and ends the session.
+   await ap.goto(base+'/privacy');await ap.locator('#confirm-account-delete').check();
+   await ap.getByRole('button',{name:'Delete my Path2Placement data'}).click();
+   await ap.getByRole('heading',{name:'Your preparation.'}).waitFor();
+   const me=await ap.evaluate(async()=>{const r=await fetch('/api/auth/me',{credentials:'same-origin'});return r.json();});
+   if(me.user)throw Error('Session survived account deletion');
+   const afterDelete=await ap.evaluate(async()=>{const r=await fetch('/api/history',{credentials:'same-origin'});return r.status;});
+   if(afterDelete!==401)throw Error('History still readable after account deletion: '+afterDelete);
+   await acct.close();
+ }
+ async function screenOn(target,name){await target.screenshot({path:`.cache/screenshots/${name}.png`,fullPage:true});}
+
  if(errors.length)throw Error(errors.join('\n'));
  console.log('PASS: desktop assessment/validation/repeat/save, plan ticks, CSV download, backup/delete/restore, model inference, mobile layout/navigation, cross-context history isolation; JS errors: 0.');
  await browser.close();

@@ -1,7 +1,7 @@
 name: Live Vercel smoke test
 on:
   push:
-    branches: [arena/cb92804d-placementreadinesspredic]
+    branches: [arena/67d73c1b-placementreadinesspredic]
     paths:
       - '.github/workflows/production-smoke.yml'
       - 'tests/browser-smoke.cjs'
@@ -21,6 +21,9 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/.cache/browser/node_modules
           P2P_BASE_URL: https://placement-readiness-predic.vercel.app
+          # Disposable demo account; holds no personal data and is emptied at the end of each run.
+          P2P_SMOKE_EMAIL: p2p-smoke@example.com
+          P2P_SMOKE_PASSWORD: smoke-test-password-2026
         run: node tests/browser-smoke.cjs
       - uses: actions/upload-artifact@v4
         if: always()
