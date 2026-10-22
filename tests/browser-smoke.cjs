@@ -95,7 +95,9 @@ const path=require('node:path');
    const submit=async(mode)=>{
      await ap.locator('#auth-email').fill(accountEmail);await ap.locator('#auth-password').fill(accountPassword);
      await ap.getByRole('button',{name:mode==='signup'?'Create my account':'Sign in',exact:true}).click();
-     await ap.waitForTimeout(2000);
+     // The first request may cold-start the Python function; wait for a real outcome.
+     await ap.waitForFunction(()=>location.pathname!=='/login'||(document.querySelector('#form-error')?.textContent||'').trim().length>0,null,{timeout:45000}).catch(()=>{});
+     await ap.waitForTimeout(400);
    };
    await ap.goto(base+'/login?next=/assessment');await ap.getByRole('heading',{name:'Welcome back'}).waitFor();
    await submit('signin');
